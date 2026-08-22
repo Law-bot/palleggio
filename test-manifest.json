@@ -2,7 +2,7 @@
   "name": "Test Bare",
   "short_name": "TestBare",
   "start_url": "test-bare.html",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#17130F",
   "theme_color": "#17130F",
   "orientation": "portrait",
