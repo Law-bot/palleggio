@@ -584,7 +584,7 @@ header {
 
 /* TIPOGRAFIA FLUIDA CON CLAMP() */
 .titolo-intro {
-  font-size: clamp(3.8rem, 11vw, 11rem);
+  font-size: clamp(4.5rem, 11vw, 11rem);
   font-weight: 700;
   letter-spacing: var(--tracking-tight);
   color: var(--accent-cyan);
@@ -613,6 +613,12 @@ header {
   line-height: 1.55;
   margin: 26px auto 0;
   letter-spacing: 0.01em;
+}
+
+@media (max-width: 600px) {
+  /* Meno largo, più alto: su mobile la citazione fa più righe corte
+     invece di poche righe lunghe. */
+  .sottotitolo-intro { max-width: 260px; }
 }
 
 .sottotitolo-intro .testo-rosso {
@@ -910,6 +916,9 @@ header {
     font-size: clamp(2.4rem, 11vw, 4.2rem);
   }
   .titolo-about .parola-scroll { display: block; }
+  /* Il titolo impilato su 3 righe è molto più alto: più margine statico
+     verso le frasi sotto, in aggiunta alla risalita ridotta in JS. */
+  .about-pin-sticky { gap: 46px; }
 }
 
 .font-web {
@@ -1120,6 +1129,24 @@ header {
   margin: 0 0 30px;
 }
 
+.portfolio-title-quote {
+  font-family: 'Courier Prime', monospace;
+  font-style: italic;
+  font-size: clamp(0.95rem, 1.6vw, 1.15rem);
+  color: var(--text-main);
+  margin: 0 0 22px;
+}
+
+.portfolio-title-quote-cit {
+  display: block;
+  font-style: normal;
+  font-size: 0.7em;
+  color: rgba(237, 242, 242, 0.5);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
 .portfolio-title-tagline {
   font-size: clamp(1.05rem, 1.8vw, 1.3rem);
   font-weight: 300;
@@ -1175,6 +1202,14 @@ header {
 }
 
 .filtro-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+@media (max-width: 600px) {
+  /* Sotto i 600px le pillole (stesse dimensioni del desktop) vanno a capo
+     in coppie isolate con vuoto ai lati: più compatte, ne stanno di più
+     per riga e il gruppo resta visivamente unito. */
+  .filtro-pillole { gap: 8px; }
+  .filtro-btn { padding: 8px 14px; font-size: 11px; }
+}
 
 .filtro-btn.active {
   background-color: var(--accent-cyan);
@@ -1269,7 +1304,7 @@ header {
   margin: 0;
 }
 
-@media (max-width: 760px) { .masonryA { gap: 4px; } .masonryA .masonry-col { gap: 4px; } .masonryA .m-overlay { padding: 34px 12px 12px; } .masonryA .m-titolo { font-size: 0.95rem; } }
+@media (max-width: 760px) { .masonryA { gap: 4px; } .masonryA .masonry-col { gap: 4px; } .masonryA .m-overlay { padding: 34px 12px 12px; } .masonryA .m-titolo { font-size: 1.15rem; } }
 
 #portfolio .contengo-portfolio {
   width: 100%;
@@ -1885,6 +1920,10 @@ footer {
   transition: text-shadow 0.4s var(--ease-out-expo), transform 0.4s var(--ease-out-expo), color 0.3s ease;
 }
 
+@media (max-width: 600px) {
+  .footer-cta-mail { font-size: clamp(3rem, 13vw, 4.2rem); }
+}
+
 .footer-cta-mail:hover {
   text-shadow: -6px 6px 0px var(--accent-magenta);
   transform: translateY(-3px);
@@ -1892,11 +1931,19 @@ footer {
 
 .footer-links {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 0 clamp(20px, 5vw, 64px) clamp(50px, 7vw, 80px);
+}
+
+.footer-links-social {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 28px 40px;
-  padding: 0 clamp(20px, 5vw, 64px) clamp(50px, 7vw, 80px);
 }
 
 .footer-cv-link {
@@ -1970,14 +2017,22 @@ footer {
   html, body { cursor: auto; }
 }
 
+@media only screen and (max-width: 480px) {
+  /* Il menu non deve mai arrivare a toccare le icone ai lati: gli do un
+     tetto di larghezza, così se il testo non ci sta va a capo dentro la
+     pillola invece di allargarla verso i cerchi. */
+  .menuuu-law { max-width: 190px; }
+  .dropdown-law { text-align: center; }
+}
+
 @media only screen and (max-width: 380px) {
   header { padding: 0 10px; }
   .header-icon { width: 36px; height: 36px; }
   .header-icon svg { width: 15px; height: 15px; }
   .header-icon-cv-label { font-size: 12px; }
-  .menuuu-law { padding: 5px 6px; }
-  .dropdown-law { padding: 7px 9px; }
-  .dropbtn-law { font-size: 11.5px; }
+  .menuuu-law { padding: 5px 5px; max-width: 160px; }
+  .dropdown-law { padding: 7px 7px; }
+  .dropbtn-law { font-size: 12.5px; }
 }
 </style>
 </head>
@@ -2133,6 +2188,7 @@ footer {
   <section id="portfolio">
     <div class="portfolio-title-chapter">
       <h2 class="titolo-portfolio-big" data-fade-in>Portfolio</h2>
+      <p class="portfolio-title-quote" data-fade-in style="transition-delay:0.08s">"Chi sa fare, sa capire."<span class="portfolio-title-quote-cit">Cit. Chiedimi se sono felice</span></p>
       <p class="portfolio-title-tagline" data-fade-in style="transition-delay:0.12s">Una selezione di progetti tra branding, e-commerce, web design e comunicazione digitale: alcuni reali, alcuni scolastici, altri semplicemente miei.</p>
     </div>
 
@@ -2152,12 +2208,14 @@ footer {
 		</div>
 
 		<div class="footer-links">
-			<a href="https://www.linkedin.com/in/lorenzo-francesconi/" target="_blank" rel="noopener" class="footer-social-link">LinkedIn</a>
 			<a href="download/CV.pdf" download rel="noopener" class="footer-cv-link">
 				<svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
 				Scarica CV
 			</a>
-			<a href="https://www.behance.net/lorenzofrancesconi" target="_blank" rel="noopener" class="footer-social-link">Behance</a>
+			<div class="footer-links-social">
+				<a href="https://www.linkedin.com/in/lorenzo-francesconi/" target="_blank" rel="noopener" class="footer-social-link">LinkedIn</a>
+				<a href="https://www.behance.net/lorenzofrancesconi" target="_blank" rel="noopener" class="footer-social-link">Behance</a>
+			</div>
 		</div>
 
 		<div class="footer-bottom">
@@ -2447,26 +2505,11 @@ footer {
     const TOTALE_FASI = FASE_STORIA_INIZIO + (nStorie - 1) * UNITA_STORIA + RAMPA_STORIA + 0.5;
     wrap.style.height = (TOTALE_FASI * 100) + 'vh';
 
-    // Lo spostamento massimo a sinistra si calcola sulla larghezza reale del
-    // titolo (non un valore fisso): così non rischia mai di tagliare fuori
-    // dallo schermo la prima parola, qualunque sia il testo o il viewport.
+    // Il titolo resta sempre centrato (lo scivolamento a sinistra è stato
+    // tolto): spostamentoMax è fisso a 0, la funzione non fa più nulla ma
+    // resta per non toccare le chiamate più sotto (load/resize/aggiorna).
     let spostamentoMax = 0;
-    function ricalcolaSpostamento() {
-      // Sotto ~1300px il titolo va a capo (una parola per riga, vedi CSS):
-      // lo scivolamento a sinistra non ha senso in quel layout e produrrebbe
-      // un valore calcolato sul bordo del blocco anziché sul testo, quindi
-      // lo disattivo del tutto in quel caso.
-      if (getComputedStyle(titolo).whiteSpace !== 'nowrap') {
-        spostamentoMax = 0;
-        return;
-      }
-      const transformPrecedente = left.style.transform;
-      left.style.transform = 'none';
-      const primaParolaRect = parole[0].getBoundingClientRect();
-      left.style.transform = transformPrecedente;
-      const margineSinistro = Math.min(64, window.innerWidth * 0.05) + 20;
-      spostamentoMax = Math.max(0, primaParolaRect.left - margineSinistro);
-    }
+    function ricalcolaSpostamento() {}
 
     function aggiorna() {
       const rect = wrap.getBoundingClientRect();
@@ -2506,10 +2549,15 @@ footer {
 
         // Il percorso verticale copre tutto il ciclo, rampa di uscita
         // inclusa: così il punto più alto (quindi più vicino al titolo)
-        // coincide con opacità 0, mai con opacità piena.
+        // coincide con opacità 0, mai con opacità piena. Sotto i 1300px il
+        // titolo "Graphic <web> Designer" è più alto (su una riga più
+        // piccola o impilato su più righe, vedi CSS): con la stessa risalita
+        // fissa il testo arriverebbe a toccarlo, quindi la riduco quando
+        // c'è meno spazio verticale disponibile.
+        const percorsoVerticale = window.innerWidth <= 520 ? 14 : (window.innerWidth <= 1300 ? 35 : PERCORSO_VERTICALE);
         const cicloCompleto = (j === nStorie - 1) ? UNITA_STORIA : (UNITA_STORIA + RAMPA_STORIA);
         const localeClamp = Math.min(1, Math.max(0, locale / cicloCompleto));
-        const y = PARTENZA_VERTICALE - localeClamp * PERCORSO_VERTICALE;
+        const y = PARTENZA_VERTICALE - localeClamp * percorsoVerticale;
         el.style.setProperty('--y', y.toFixed(1) + 'px');
       });
     }
