@@ -44,63 +44,31 @@
     --shadow:rgba(0,0,0,0.45);
   }
 
+  html, body{
+    height:100%;
+    overflow:hidden;
+  }
   *{box-sizing:border-box;}
   body{
     background:var(--paper);
     color:var(--ink);
     font-family:'Schibsted Grotesk', system-ui, sans-serif;
-    display:flex;
-    justify-content:center;
-    padding:40px 20px 56px;
+    margin:0;
+    padding:0;
   }
 
   .page{
-    width:100%;
-    max-width:440px;
-    display:flex;
-    flex-direction:column;
-    gap:22px;
-  }
-
-  header{
-    display:flex;
-    flex-direction:column;
-    gap:6px;
-    text-align:center;
-  }
-  .wordmark{
-    font-family:'Fraunces', serif;
-    font-style:italic;
-    font-weight:500;
-    font-size:clamp(38px,9vw,52px);
-    line-height:1;
-    color:var(--ink);
-    text-wrap:balance;
-  }
-  .wordmark em{
-    color:var(--accent);
-    font-style:italic;
-  }
-  .subtitle{
-    font-size:15px;
-    color:var(--ink-soft);
-    max-width:34ch;
-    margin:0 auto;
-    text-wrap:balance;
+    width:100vw;
+    height:100dvh;
   }
 
   .game-frame{
     position:relative;
     width:100%;
-    aspect-ratio:9/16;
-    border-radius:26px;
+    height:100%;
     overflow:hidden;
     background:var(--paper-raised);
-    box-shadow:0 18px 40px -18px var(--shadow), 0 2px 0 var(--line) inset;
     outline:none;
-  }
-  .game-frame:focus-visible{
-    box-shadow:0 18px 40px -18px var(--shadow), 0 0 0 3px var(--accent);
   }
   canvas{
     position:absolute;
@@ -210,51 +178,12 @@
     letter-spacing:0;
   }
 
-  .stages{
-    display:flex;
-    justify-content:center;
-    gap:18px;
-    padding:2px 4px;
-  }
-  .stage{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:6px;
-    font-size:11px;
-    letter-spacing:0.04em;
-    text-transform:uppercase;
-    color:var(--ink-soft);
-    font-weight:600;
-  }
-  .stage .dot{
-    width:7px;
-    height:7px;
-    border-radius:50%;
-    background:var(--line);
-  }
-  .stage.active{ color:var(--accent); }
-  .stage.active .dot{ background:var(--accent); }
-  .stage.done .dot{ background:var(--ink-soft); }
-
-  footer{
-    text-align:center;
-    font-size:12px;
-    color:var(--ink-soft);
-    opacity:0.7;
-  }
-
   @media (prefers-reduced-motion: reduce){
     * { scroll-behavior:auto !important; }
   }
 </style>
 
 <div class="page">
-  <header>
-    <div class="wordmark">Pall<em>e</em>ggio</div>
-    <p class="subtitle">Tieni la palla in aria più a lungo che puoi, mentre la giornata passa — dal cortile alla spiaggia, di notte.</p>
-  </header>
-
   <div class="game-frame" id="frame" tabindex="0" role="application" aria-label="Palleggio — tocca o premi spazio per colpire la palla">
     <canvas id="game"></canvas>
 
@@ -274,15 +203,6 @@
       <button class="retry" id="retryBtn">Rigioca</button>
     </div>
   </div>
-
-  <div class="stages" id="stages">
-    <div class="stage" data-i="0"><span class="dot"></span>Cortile</div>
-    <div class="stage" data-i="1"><span class="dot"></span>Vicolo</div>
-    <div class="stage" data-i="2"><span class="dot"></span>Piazza</div>
-    <div class="stage" data-i="3"><span class="dot"></span>Spiaggia</div>
-  </div>
-
-  <footer>Prototipo giocabile — grafica, omino e palleggio in evoluzione.</footer>
 </div>
 
 <script>
@@ -401,9 +321,13 @@
     const stageIdx = stageIndexForScore(score);
     const power = 560 + Math.min(score,30)*2.4;
     ball.vy = -power;
-    const aim = (px!=null ? px : ball.x) - ball.x;
+    // instinctive correction: the further the ball has drifted from the body,
+    // the harder the touch pulls it back — a real juggler never lets it wander.
+    const offset = ball.x - player.x;
+    const restore = -offset * 1.1;
+    const steer = clamp(((px!=null ? px : ball.x) - player.x) * 0.12, -50, 50);
     const wind = windFor(score) * (Math.random()*2-1);
-    ball.vx = clamp(ball.vx*0.25 + aim*0.1 + wind, -260, 260);
+    ball.vx = clamp(ball.vx*0.15 + restore + steer + wind, -170, 170);
     ball.squashX = 1.28; ball.squashY = 0.72;
     score += 1;
     scoreLabel.textContent = String(score);
@@ -790,6 +714,12 @@
 
       trail.push({x:ball.x, y:ball.y});
       if(trail.length > 6) trail.shift();
+
+      // the ball must always stay within the player's stance — otherwise it
+      // reads as disconnected from the character instead of being juggled
+      const envelope = reachFor(score) + ball.r*1.3;
+      if(ball.x < player.x - envelope){ ball.x = player.x - envelope; ball.vx = Math.abs(ball.vx)*0.5; }
+      if(ball.x > player.x + envelope){ ball.x = player.x + envelope; ball.vx = -Math.abs(ball.vx)*0.5; }
 
       if(ball.x - ball.r < 6){ ball.x = 6+ball.r; ball.vx *= -0.55; }
       if(ball.x + ball.r > W-6){ ball.x = W-6-ball.r; ball.vx *= -0.55; }
