@@ -1,0 +1,840 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found]){display:none!important}</style></head><body>
+<title>Palleggio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;1,500&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#211A2C;
+    --ink-soft:#5A4E68;
+    --paper:#FBF1E2;
+    --paper-raised:#FFF9EE;
+    --accent:#E15C3A;
+    --accent-ink:#FFF9EE;
+    --accent-2:#2F8F82;
+    --gold:#D9962F;
+    --line:rgba(33,26,44,0.13);
+    --shadow:rgba(33,26,44,0.16);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#F3E9D8;
+      --ink-soft:#B9AB97;
+      --paper:#18131F;
+      --paper-raised:#231C2C;
+      --accent:#F1795A;
+      --accent-ink:#1B1622;
+      --accent-2:#57BBAB;
+      --gold:#EAB65C;
+      --line:rgba(243,233,216,0.14);
+      --shadow:rgba(0,0,0,0.45);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#F3E9D8;
+    --ink-soft:#B9AB97;
+    --paper:#18131F;
+    --paper-raised:#231C2C;
+    --accent:#F1795A;
+    --accent-ink:#1B1622;
+    --accent-2:#57BBAB;
+    --gold:#EAB65C;
+    --line:rgba(243,233,216,0.14);
+    --shadow:rgba(0,0,0,0.45);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Schibsted Grotesk', system-ui, sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:40px 20px 56px;
+  }
+
+  .page{
+    width:100%;
+    max-width:440px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+
+  header{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    text-align:center;
+  }
+  .wordmark{
+    font-family:'Fraunces', serif;
+    font-style:italic;
+    font-weight:500;
+    font-size:clamp(38px,9vw,52px);
+    line-height:1;
+    color:var(--ink);
+    text-wrap:balance;
+  }
+  .wordmark em{
+    color:var(--accent);
+    font-style:italic;
+  }
+  .subtitle{
+    font-size:15px;
+    color:var(--ink-soft);
+    max-width:34ch;
+    margin:0 auto;
+    text-wrap:balance;
+  }
+
+  .game-frame{
+    position:relative;
+    width:100%;
+    aspect-ratio:9/16;
+    border-radius:26px;
+    overflow:hidden;
+    background:var(--paper-raised);
+    box-shadow:0 18px 40px -18px var(--shadow), 0 2px 0 var(--line) inset;
+    outline:none;
+  }
+  .game-frame:focus-visible{
+    box-shadow:0 18px 40px -18px var(--shadow), 0 0 0 3px var(--accent);
+  }
+  canvas{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    display:block;
+    touch-action:none;
+    cursor:pointer;
+  }
+
+  .overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    text-align:center;
+    padding:32px;
+    pointer-events:none;
+  }
+  .overlay .chip{
+    font-family:'Schibsted Grotesk', sans-serif;
+    font-weight:600;
+    font-size:13px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    background:var(--accent);
+    padding:10px 20px;
+    border-radius:999px;
+    box-shadow:0 10px 22px -10px rgba(0,0,0,0.45);
+  }
+  .overlay .big{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:44px;
+    color:var(--paper);
+    text-shadow:0 2px 14px rgba(0,0,0,0.35);
+  }
+  .overlay .small{
+    font-size:14px;
+    color:var(--paper);
+    opacity:0.85;
+  }
+  #overOverlay{
+    background:linear-gradient(180deg, rgba(24,19,31,0.15), rgba(24,19,31,0.72));
+    pointer-events:none;
+  }
+  #overOverlay.show{ pointer-events:auto; }
+  button.retry{
+    pointer-events:auto;
+    font-family:'Schibsted Grotesk', sans-serif;
+    font-weight:600;
+    font-size:15px;
+    color:var(--accent-ink);
+    background:var(--accent);
+    border:none;
+    padding:13px 26px;
+    border-radius:999px;
+    cursor:pointer;
+    box-shadow:0 10px 22px -10px rgba(0,0,0,0.5);
+  }
+  button.retry:focus-visible{ outline:3px solid var(--paper); outline-offset:2px; }
+  button.retry:active{ transform:translateY(1px); }
+
+  .hud{
+    position:absolute;
+    top:16px;
+    left:16px;
+    right:16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    pointer-events:none;
+  }
+  .hud .score{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    font-size:34px;
+    color:var(--paper);
+    text-shadow:0 2px 10px rgba(0,0,0,0.35);
+    transform-origin:left center;
+    transition:transform .12s cubic-bezier(.34,1.56,.64,1);
+  }
+  .hud .score.pop{ transform:scale(1.28); }
+  .hud .best{
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    color:var(--paper);
+    opacity:0.75;
+    text-align:right;
+  }
+  .hud .best b{
+    display:block;
+    font-family:'Fraunces', serif;
+    font-style:normal;
+    font-weight:600;
+    font-size:18px;
+    font-variant-numeric:tabular-nums;
+    text-transform:none;
+    letter-spacing:0;
+  }
+
+  .stages{
+    display:flex;
+    justify-content:center;
+    gap:18px;
+    padding:2px 4px;
+  }
+  .stage{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    font-size:11px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    font-weight:600;
+  }
+  .stage .dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:var(--line);
+  }
+  .stage.active{ color:var(--accent); }
+  .stage.active .dot{ background:var(--accent); }
+  .stage.done .dot{ background:var(--ink-soft); }
+
+  footer{
+    text-align:center;
+    font-size:12px;
+    color:var(--ink-soft);
+    opacity:0.7;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    * { scroll-behavior:auto !important; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div class="wordmark">Pall<em>e</em>ggio</div>
+    <p class="subtitle">Tieni la palla in aria più a lungo che puoi, mentre la giornata passa — dal cortile alla spiaggia, di notte.</p>
+  </header>
+
+  <div class="game-frame" id="frame" tabindex="0" role="application" aria-label="Palleggio — tocca o premi spazio per colpire la palla">
+    <canvas id="game"></canvas>
+
+    <div class="hud" id="hud" hidden>
+      <div class="score" id="scoreLabel">0</div>
+      <div class="best">Record<b id="bestLabel">0</b></div>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="chip">Tocca per iniziare</div>
+      <div class="small">Un tocco al momento giusto tiene alta la palla</div>
+    </div>
+
+    <div class="overlay" id="overOverlay" hidden>
+      <div class="big" id="finalScore">0 tocchi</div>
+      <div class="small" id="finalBest">Record: 0</div>
+      <button class="retry" id="retryBtn">Rigioca</button>
+    </div>
+  </div>
+
+  <div class="stages" id="stages">
+    <div class="stage" data-i="0"><span class="dot"></span>Cortile</div>
+    <div class="stage" data-i="1"><span class="dot"></span>Vicolo</div>
+    <div class="stage" data-i="2"><span class="dot"></span>Piazza</div>
+    <div class="stage" data-i="3"><span class="dot"></span>Spiaggia</div>
+  </div>
+
+  <footer>Prototipo giocabile — grafica, omino e palleggio in evoluzione.</footer>
+</div>
+
+<script>
+(function(){
+  const frame = document.getElementById('frame');
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const startOverlay = document.getElementById('startOverlay');
+  const overOverlay = document.getElementById('overOverlay');
+  const hud = document.getElementById('hud');
+  const scoreLabel = document.getElementById('scoreLabel');
+  const bestLabel = document.getElementById('bestLabel');
+  const finalScore = document.getElementById('finalScore');
+  const finalBest = document.getElementById('finalBest');
+  const retryBtn = document.getElementById('retryBtn');
+  const stageEls = Array.from(document.querySelectorAll('.stage'));
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let W = 0, H = 0, DPR = 1;
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = rect.width; H = rect.height;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize);
+
+  const BEST_KEY = 'palleggio-best-score';
+  let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
+  bestLabel.textContent = best;
+
+  const STAGES = [
+    { name:'cortile', threshold:0 },
+    { name:'vicolo', threshold:10 },
+    { name:'piazza', threshold:25 },
+    { name:'spiaggia', threshold:50 }
+  ];
+  function stageIndexForScore(s){
+    let idx = 0;
+    for(let i=0;i<STAGES.length;i++){ if(s >= STAGES[i].threshold) idx = i; }
+    return idx;
+  }
+  function updateStagesUI(score){
+    const cur = stageIndexForScore(score);
+    stageEls.forEach((el,i)=>{
+      el.classList.toggle('active', i===cur);
+      el.classList.toggle('done', i<cur);
+    });
+  }
+
+  let state = 'start'; // start | playing | over
+  let t = 0;
+  let score = 0;
+  let particles = [];
+  let trail = [];
+  let shake = 0; // camera shake magnitude, decays
+  let missSlump = 0; // 0..1 character slump on game over
+
+  const player = { x:0, y:0, kick:0, lean:0 };
+  const ball = { x:0, y:0, vx:0, vy:0, r:16, rot:0, squashX:1, squashY:1 };
+
+  function resetRun(){
+    score = 0;
+    scoreLabel.textContent = '0';
+    updateStagesUI(0);
+    player.x = W*0.5;
+    player.y = H*0.80;
+    player.lean = 0;
+    ball.x = W*0.5;
+    ball.y = player.y - 30;
+    ball.vx = 0; ball.vy = 0; ball.rot = 0;
+    ball.squashX = 1; ball.squashY = 1;
+    particles = [];
+    trail = [];
+    shake = 0;
+    missSlump = 0;
+  }
+
+  function burst(x,y,color){
+    if(reduceMotion) return;
+    for(let i=0;i<9;i++){
+      const a = -Math.PI/2 + (Math.random()-0.5)*2.6;
+      const sp = 100 + Math.random()*140;
+      particles.push({
+        x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+        life:1, spin:(Math.random()-0.5)*8, size:2+Math.random()*2.5, color
+      });
+    }
+  }
+
+  // ---------- Difficulty curve ----------
+  // Timing window (px reach, vy tolerance) shrinks gently with score, floor keeps it fair.
+  function reachFor(s){ return Math.max(46, 78 - s*0.7); }
+  function vyToleranceFor(s){ return Math.max(-140, -40 - s*1.6); }
+  function gravityFor(s){
+    // smoother, unbounded ramp with diminishing returns so late game keeps tightening
+    return 30 + 26*(1 - Math.exp(-s/22)) + s*0.12;
+  }
+  function windFor(s){
+    // small unpredictable lateral push introduced after the first stage, grows slowly
+    if(s < 8) return 0;
+    return Math.min(70, (s-8)*2.1);
+  }
+
+  function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+  function tryHit(px){
+    const reach = reachFor(score);
+    const vyTol = vyToleranceFor(score);
+    const inReach = Math.abs(ball.x - player.x) < reach && ball.y > H*0.58 && ball.y < H*0.92 && ball.vy >= vyTol;
+    player.kick = 1;
+    if(!inReach) return false;
+    const stageIdx = stageIndexForScore(score);
+    const power = 560 + Math.min(score,30)*2.4;
+    ball.vy = -power;
+    const aim = (px!=null ? px : ball.x) - ball.x;
+    const wind = windFor(score) * (Math.random()*2-1);
+    ball.vx = clamp(ball.vx*0.25 + aim*0.1 + wind, -260, 260);
+    ball.squashX = 1.28; ball.squashY = 0.72;
+    score += 1;
+    scoreLabel.textContent = String(score);
+    scoreLabel.classList.remove('pop'); void scoreLabel.offsetWidth; scoreLabel.classList.add('pop');
+    if(score > best){ best = score; localStorage.setItem(BEST_KEY, String(best)); bestLabel.textContent = best; }
+    updateStagesUI(score);
+    burst(ball.x, ball.y, STAGE_ACCENT[stageIdx]);
+    shake = Math.min(shake + 5, 10);
+    return true;
+  }
+
+  function onPointerDown(e){
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const px = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    handleTap(px);
+  }
+  function handleTap(px){
+    if(state === 'start'){
+      state = 'playing';
+      hud.hidden = false;
+      startOverlay.hidden = true;
+      tryHit(px);
+    } else if(state === 'playing'){
+      tryHit(px);
+    }
+  }
+  canvas.addEventListener('pointerdown', onPointerDown);
+  frame.addEventListener('keydown', function(e){
+    if(e.code === 'Space' || e.code === 'Enter'){
+      e.preventDefault();
+      handleTap(ball.x);
+    }
+  });
+  retryBtn.addEventListener('click', function(){
+    overOverlay.hidden = true;
+    overOverlay.classList.remove('show');
+    state = 'start';
+    hud.hidden = true;
+    startOverlay.hidden = false;
+    resetRun();
+  });
+
+  function gameOver(){
+    state = 'over';
+    finalScore.textContent = score === 1 ? '1 tocco' : score + ' tocchi';
+    finalBest.textContent = 'Record: ' + best;
+    overOverlay.hidden = false;
+    requestAnimationFrame(()=>overOverlay.classList.add('show'));
+  }
+
+  // ---------- Scene palettes ----------
+  const STAGE_ACCENT = ['#E15C3A', '#E3792F', '#D9962F', '#E9C36A'];
+
+  function lerp(a,b,t){ return a+(b-a)*t; }
+
+  function skyGradient(stageIdx){
+    const stops = {
+      cortile: ['#BFD9E8', '#F3E6C7'],
+      vicolo:  ['#E8703F', '#F6B37A'],
+      piazza:  ['#2B2350', '#7A4A63'],
+      spiaggia:['#0C1024', '#122043']
+    };
+    const names = ['cortile','vicolo','piazza','spiaggia'];
+    return stops[names[stageIdx]];
+  }
+
+  function drawSky(stageIdx){
+    const [top, bottom] = skyGradient(stageIdx);
+    const g = ctx.createLinearGradient(0,0,0,H*0.78);
+    g.addColorStop(0, top);
+    g.addColorStop(1, bottom);
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  function drawGround(color){
+    ctx.fillStyle = color;
+    ctx.fillRect(0, H*0.80, W, H*0.20);
+  }
+
+  function drawSun(x,y,r,color){
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+
+  function drawCortile(){
+    drawSky(0);
+    ctx.fillStyle = '#E7B98F';
+    ctx.fillRect(0, H*0.42, W, H*0.40);
+    drawSun(W*0.82, H*0.16, 26, '#FBE3A0');
+    ctx.fillStyle = 'rgba(90,60,50,0.28)';
+    for(let i=0;i<2;i++){
+      ctx.fillRect(W*0.14 + i*W*0.30, H*0.48, W*0.14, H*0.14);
+    }
+    const sway = reduceMotion ? 0 : Math.sin(t*1.2)*6;
+    ctx.strokeStyle = 'rgba(70,50,45,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(W*0.08,H*0.40); ctx.lineTo(W*0.92,H*0.40); ctx.stroke();
+    const clothes = ['#E15C3A','#F3E6C7','#2F8F82'];
+    clothes.forEach((c,i)=>{
+      const cx = W*(0.22 + i*0.28) + sway;
+      ctx.fillStyle = c;
+      ctx.fillRect(cx-10, H*0.40, 20, 22);
+    });
+    drawGround('#D8A96B');
+    ctx.fillStyle = '#B5613C';
+    ctx.fillRect(W*0.08, H*0.76, 26, 20);
+    ctx.fillStyle = '#3FA35B';
+    ctx.beginPath(); ctx.ellipse(W*0.08+13, H*0.74, 16, 14, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  function drawVicolo(){
+    drawSky(1);
+    const heights = [0.5,0.38,0.46,0.34,0.5];
+    ctx.fillStyle = '#3A2A3E';
+    let bw = W/heights.length;
+    heights.forEach((h,i)=>{
+      ctx.fillRect(i*bw, H*(0.80-h), bw-3, H*h);
+      if(i%2===0){
+        ctx.fillStyle = '#F6C86B';
+        ctx.fillRect(i*bw+bw*0.3, H*(0.80-h)+14, 8,8);
+        ctx.fillStyle = '#3A2A3E';
+      }
+    });
+    if(!reduceMotion){
+      ctx.strokeStyle = 'rgba(40,25,35,0.6)';
+      ctx.lineWidth = 2;
+      for(let i=0;i<3;i++){
+        const sx = ((t*40 + i*140) % (W+60)) - 30;
+        const sy = H*0.18 + i*18 + Math.sin(t*2+i)*6;
+        ctx.beginPath();
+        ctx.moveTo(sx-8,sy); ctx.quadraticCurveTo(sx,sy-6,sx+8,sy);
+        ctx.stroke();
+      }
+    }
+    drawGround('#8A7A78');
+  }
+
+  function drawPiazza(){
+    drawSky(2);
+    ctx.strokeStyle = 'rgba(240,220,180,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0,H*0.14);
+    ctx.quadraticCurveTo(W*0.5, H*0.24, W, H*0.14);
+    ctx.stroke();
+    const glow = reduceMotion ? 1 : (0.6 + Math.sin(t*3)*0.4);
+    for(let i=1;i<8;i++){
+      const p = i/8;
+      const lx = lerp(0,W,p);
+      const ly = (1-p)*(1-p)*H*0.14 + 2*(1-p)*p*H*0.24 + p*p*H*0.14;
+      ctx.fillStyle = `rgba(245,201,107,${0.5+0.5*glow})`;
+      ctx.beginPath(); ctx.arc(lx,ly+6,3,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = '#241A38';
+    ctx.beginPath(); ctx.ellipse(W*0.5, H*0.66, 70, 14, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(W*0.5-6, H*0.52, 12, 16);
+    drawGround('#5B4468');
+  }
+
+  function drawSpiaggia(){
+    drawSky(3);
+    if(!starField.length){
+      for(let i=0;i<40;i++){
+        starField.push({x:Math.random(),y:Math.random()*0.55,seed:Math.random()*10});
+      }
+    }
+    starField.forEach(s=>{
+      const tw = reduceMotion ? 0.8 : 0.5+0.5*Math.sin(t*2+s.seed*6);
+      ctx.fillStyle = `rgba(255,250,235,${0.3+0.6*tw})`;
+      ctx.beginPath(); ctx.arc(s.x*W, s.y*H, 1.4, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle = '#EFE6C8';
+    ctx.beginPath(); ctx.arc(W*0.78, H*0.16, 22, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(150,140,110,0.35)';
+    ctx.beginPath(); ctx.arc(W*0.74, H*0.13, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(W*0.82, H*0.20, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#182B4A';
+    ctx.fillRect(0, H*0.74, W, H*0.06);
+    drawGround('#C9B58C');
+  }
+
+  const starField = [];
+  const SCENE_DRAW = [drawCortile, drawVicolo, drawPiazza, drawSpiaggia];
+
+  // ---------- Player (omino) ----------
+  // Flat ink silhouette with a soft stage-tinted rim glow (Alto's Odyssey-style
+  // backlight) — stays readable against all four scene palettes without needing
+  // a skin tone that could match a background color.
+  function drawPlayer(stageIdx){
+    const bob = reduceMotion ? 0 : Math.sin(t*3)*2;
+    const kick = player.kick;
+    player.kick = Math.max(0, player.kick - 0.06);
+    const slump = missSlump; // 0..1
+    const targetLean = clamp((ball.x - player.x) * 0.05, -10, 10);
+    player.lean += (targetLean - player.lean) * 0.12;
+
+    const kx = player.x, ky = player.y + bob + slump*10;
+    const ink = '#1D1624';
+    const accent = STAGE_ACCENT[stageIdx];
+
+    ctx.save();
+    ctx.translate(kx, ky);
+    ctx.rotate((player.lean*Math.PI/180) + slump*0.35);
+
+    // ground contact shadow
+    ctx.fillStyle = 'rgba(20,14,24,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(0, 28, 22 - slump*6, 6 - slump*2, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 10;
+
+    // back (static) leg
+    ctx.fillStyle = ink;
+    ctx.save();
+    ctx.translate(-6, -4);
+    ctx.fillRect(-4, 0, 8, 20);
+    ctx.restore();
+
+    // kicking leg (thigh + shin, eased swing)
+    const swing = Math.sin(kick*Math.PI); // 0->1->0 easing across the kick
+    ctx.save();
+    ctx.translate(6, -4);
+    ctx.rotate(-swing*1.05);
+    ctx.fillStyle = ink;
+    ctx.fillRect(-3, 0, 7, 11);
+    ctx.save();
+    ctx.translate(0, 11);
+    ctx.rotate(swing*0.9);
+    ctx.fillStyle = ink;
+    ctx.fillRect(-3, 0, 7, 12);
+    // boot accent
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = accent;
+    ctx.beginPath(); ctx.ellipse(3, 13, 6, 4, 0.3, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 10; ctx.shadowColor = accent;
+    ctx.restore();
+    ctx.restore();
+
+    // torso
+    ctx.fillStyle = ink;
+    ctx.beginPath();
+    ctx.moveTo(-14,-6);
+    ctx.quadraticCurveTo(-16,-30, 0,-32);
+    ctx.quadraticCurveTo(16,-30, 14,-6);
+    ctx.quadraticCurveTo(0,0, -14,-6);
+    ctx.fill();
+
+    // arms (out for balance)
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-13,-22); ctx.quadraticCurveTo(-24,-16+swing*4, -22,-6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(13,-22); ctx.quadraticCurveTo(24,-16-swing*4, 22,-8);
+    ctx.stroke();
+
+    // head
+    ctx.fillStyle = ink;
+    ctx.beginPath(); ctx.arc(0,-42,11,0,Math.PI*2); ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // sash — small saturated detail for personality, not a background-sized fill
+    ctx.strokeStyle = '#2F8F82';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-11,-27); ctx.lineTo(9,-9);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // ---------- Ball ----------
+  function drawBallShadow(stageIdx){
+    const groundY = H*0.83;
+    const height = clamp((groundY - ball.y) / (groundY - H*0.15), 0, 1);
+    const s = lerp(1, 0.42, height);
+    const alpha = lerp(0.32, 0.08, height);
+    ctx.fillStyle = `rgba(15,10,10,${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(ball.x, groundY+2, ball.r*1.1*s, ball.r*0.4*s, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawBall(stageIdx){
+    // motion trail
+    trail.forEach((p,i)=>{
+      const a = (i/trail.length) * 0.22;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = STAGE_ACCENT[stageIdx];
+      ctx.beginPath(); ctx.arc(p.x,p.y,ball.r*0.7,0,Math.PI*2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    ctx.save();
+    ctx.translate(ball.x, ball.y);
+    ctx.rotate(ball.rot);
+    ctx.scale(ball.squashX, ball.squashY);
+    const grad = ctx.createRadialGradient(-5,-6,2,0,0,ball.r);
+    grad.addColorStop(0, '#FFFBF2');
+    grad.addColorStop(1, '#EDE4D0');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0,0,ball.r,0,Math.PI*2); ctx.fill();
+
+    // a few scattered pentagon panels — an asymmetric, believable "football" read
+    // rather than a perfectly radial ring (which reads as a flower at small sizes)
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0,0,ball.r,0,Math.PI*2); ctx.clip();
+    ctx.fillStyle = 'rgba(33,26,44,0.82)';
+    drawPentagon(-0.06*ball.r, -0.34*ball.r, ball.r*0.36, 0);
+    drawPentagon(0.42*ball.r, 0.10*ball.r, ball.r*0.30, 0.5);
+    drawPentagon(-0.38*ball.r, 0.30*ball.r, ball.r*0.26, -0.4);
+    drawPentagon(0.05*ball.r, 0.52*ball.r, ball.r*0.20, 0.9);
+    ctx.restore();
+
+    // rim tinted with the stage accent to keep it tied to the scene
+    ctx.strokeStyle = STAGE_ACCENT[stageIdx];
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(0,0,ball.r-0.7,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(30,20,20,0.18)';
+    ctx.beginPath(); ctx.arc(0,0,ball.r,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPentagon(cx, cy, size, rot){
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+      const a = rot + (Math.PI*2*i)/5 - Math.PI/2;
+      const x = cx + Math.cos(a)*size*0.5;
+      const y = cy + Math.sin(a)*size*0.5;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawParticles(){
+    particles.forEach(p=>{
+      ctx.save();
+      ctx.globalAlpha = Math.max(p.life,0);
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.spin*p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size);
+      ctx.restore();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min((now-last)/1000, 1/30);
+    last = now;
+    if(!reduceMotion || state==='playing') t += dt;
+
+    const stageIdx = stageIndexForScore(score);
+
+    ctx.save();
+    if(shake > 0.02 && !reduceMotion){
+      const sx = (Math.random()-0.5)*shake;
+      const sy = (Math.random()-0.5)*shake;
+      ctx.translate(sx, sy);
+      shake *= 0.82;
+    } else { shake = 0; }
+
+    ctx.clearRect(-20,-20,W+40,H+40);
+    SCENE_DRAW[stageIdx]();
+
+    if(state === 'playing'){
+      const g = gravityFor(score) * 60;
+      ball.vy += g*dt;
+      ball.x += ball.vx*dt;
+      ball.y += ball.vy*dt;
+      ball.rot += (ball.vx*dt)*0.02 + 0.05;
+
+      trail.push({x:ball.x, y:ball.y});
+      if(trail.length > 6) trail.shift();
+
+      if(ball.x - ball.r < 6){ ball.x = 6+ball.r; ball.vx *= -0.55; }
+      if(ball.x + ball.r > W-6){ ball.x = W-6-ball.r; ball.vx *= -0.55; }
+
+      const groundY = H*0.83;
+      if(ball.y + ball.r >= groundY){
+        ball.y = groundY - ball.r;
+        gameOver();
+      }
+    } else if(state === 'start'){
+      ball.y = player.y - 30 + Math.sin(t*2)*3;
+      ball.x = player.x;
+      trail.length = 0;
+    } else if(state === 'over'){
+      missSlump = Math.min(1, missSlump + dt*2.2);
+    }
+
+    // ease squash back to normal
+    ball.squashX += (1-ball.squashX)*Math.min(1, dt*10);
+    ball.squashY += (1-ball.squashY)*Math.min(1, dt*10);
+
+    particles.forEach(p=>{
+      p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 320*dt; p.life -= dt*1.7;
+    });
+    particles = particles.filter(p=>p.life>0);
+
+    drawBallShadow(stageIdx);
+    drawPlayer(stageIdx);
+    drawBall(stageIdx);
+    drawParticles();
+
+    ctx.restore();
+
+    requestAnimationFrame(loop);
+  }
+
+  function init(){
+    resize();
+    resetRun();
+    requestAnimationFrame(loop);
+  }
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(init);
+  } else { init(); }
+})();
+</script>
+
+</body></html>
