@@ -121,6 +121,76 @@
     pointer-events:none;
   }
   #overOverlay.show{ pointer-events:auto; }
+
+  .lb{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    max-width:260px;
+  }
+  .lb-submit{
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .lb-submit input{
+    pointer-events:auto;
+    width:76px;
+    font-family:'Schibsted Grotesk', sans-serif;
+    font-weight:700;
+    font-size:18px;
+    letter-spacing:0.12em;
+    text-align:center;
+    text-transform:uppercase;
+    color:var(--ink);
+    background:var(--paper);
+    border:none;
+    border-radius:10px;
+    padding:9px 6px;
+  }
+  .lb-submit input:focus-visible{ outline:3px solid var(--accent); outline-offset:1px; }
+  .lb-submit button{
+    pointer-events:auto;
+    font-family:'Schibsted Grotesk', sans-serif;
+    font-weight:600;
+    font-size:13px;
+    color:var(--accent-ink);
+    background:var(--accent);
+    border:none;
+    padding:10px 16px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .lb-submit button:disabled{ opacity:0.5; cursor:default; }
+  .lb-title{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--paper);
+    opacity:0.75;
+  }
+  .lb-list{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .lb-row{
+    display:grid;
+    grid-template-columns:20px 1fr auto;
+    gap:10px;
+    font-size:13px;
+    color:var(--paper);
+    opacity:0.9;
+    font-variant-numeric:tabular-nums;
+  }
+  .lb-row.me{ color:var(--gold); font-weight:700; opacity:1; }
+  .lb-row .rank{ opacity:0.6; }
+  .lb-row .nm{ letter-spacing:0.06em; }
+
   button.retry{
     pointer-events:auto;
     font-family:'Schibsted Grotesk', sans-serif;
@@ -246,6 +316,14 @@
     <div class="overlay" id="overOverlay" hidden>
       <div class="big" id="finalScore">0 tocchi</div>
       <div class="small" id="finalBest">Record: 0</div>
+      <div class="lb" id="lb" hidden>
+        <div class="lb-submit" id="lbSubmit" hidden>
+          <input id="lbName" maxlength="3" placeholder="AAA" autocapitalize="characters" autocomplete="off" aria-label="Le tue iniziali" />
+          <button id="lbSaveBtn">Salva</button>
+        </div>
+        <div class="lb-title">Classifica</div>
+        <div class="lb-list" id="lbList"></div>
+      </div>
       <button class="retry" id="retryBtn">Rigioca</button>
     </div>
   </div>
@@ -265,9 +343,52 @@
   const finalBest = document.getElementById('finalBest');
   const retryBtn = document.getElementById('retryBtn');
   const windBadge = document.getElementById('windBadge');
+  const lb = document.getElementById('lb');
+  const lbSubmit = document.getElementById('lbSubmit');
+  const lbName = document.getElementById('lbName');
+  const lbSaveBtn = document.getElementById('lbSaveBtn');
+  const lbList = document.getElementById('lbList');
   const stageEls = Array.from(document.querySelectorAll('.stage'));
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- Global leaderboard (Artifact `db` capability) ----------
+  // Gracefully absent for viewers outside the artifact owner's org, or when
+  // this runtime doesn't serve it — the whole panel just stays hidden and
+  // the game itself is fully playable either way.
+  let dbNS = null;
+  let lbSavedThisRun = false;
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function renderLeaderboard(rows){
+    lbList.innerHTML = rows.map((r,i)=>
+      `<div class="lb-row${r._mine?' me':''}"><span class="rank">${i+1}</span><span class="nm">${escapeHtml((r.name||'---').slice(0,3).toUpperCase())}</span><span>${Number(r.score)||0}</span></div>`
+    ).join('');
+  }
+  function loadLeaderboard(){
+    if(!dbNS) return;
+    dbNS.collection('leaderboard').orderBy('score','desc').limit(10).get()
+      .then(snap => renderLeaderboard(snap.docs.map(d=>d.data())))
+      .catch(()=>{});
+  }
+  function submitScore(){
+    if(!dbNS || lbSavedThisRun) return;
+    const name = (lbName.value || '').trim().slice(0,3).toUpperCase() || 'YOU';
+    lbSaveBtn.disabled = true;
+    dbNS.collection('leaderboard').add({ name, score, ts: Date.now() })
+      .then(()=>{
+        lbSavedThisRun = true;
+        lbSubmit.hidden = true;
+        loadLeaderboard();
+      })
+      .catch(()=>{ lbSaveBtn.disabled = false; });
+  }
+  lbSaveBtn.addEventListener('click', submitScore);
+  lbName.addEventListener('keydown', e=>{ if(e.key==='Enter') submitScore(); });
+  if(window.claude && window.claude.use){
+    window.claude.use('db').then(ns => { dbNS = ns; if(ns) lb.hidden = false; });
+  }
 
   let W = 0, H = 0, DPR = 1;
   function resize(){
@@ -284,11 +405,14 @@
   let best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10);
   bestLabel.textContent = best;
 
+  // Stretched to match the extended difficulty ramp (floor around score 160)
+  // — arriving at full night should coincide with the hardest stretch of
+  // play, not happen while the game still feels easy.
   const STAGES = [
     { name:'cortile', threshold:0 },
-    { name:'vicolo', threshold:10 },
-    { name:'piazza', threshold:25 },
-    { name:'spiaggia', threshold:50 }
+    { name:'vicolo', threshold:35 },
+    { name:'piazza', threshold:90 },
+    { name:'spiaggia', threshold:160 }
   ];
   function stageIndexForScore(s){
     let idx = 0;
@@ -362,9 +486,20 @@
   }
 
   // ---------- Difficulty curve ----------
-  // Timing window (px reach, vy tolerance) shrinks gently with score, floor keeps it fair.
-  function reachFor(s){ return Math.max(46, 78 - s*0.7); }
-  function vyToleranceFor(s){ return Math.max(-140, -40 - s*1.6); }
+  // Timing window (px reach, vy tolerance, vertical zone) shrinks gently with
+  // score — wide and forgiving on the first touches so anyone can pick it up,
+  // then tightens toward a floor that stays within reach of a real finger.
+  // The ramp is stretched out toward ~150-180 rather than maxing out by 50:
+  // if the hardest setting arrives too early, every score past that point
+  // feels the same and big numbers stop meaning anything. A longer ramp
+  // keeps 100+ feeling like real, earned progress — which is the whole
+  // point once there's a leaderboard to chase.
+  function reachFor(s){ return Math.max(46, 78 - s*0.21); }
+  function vyToleranceFor(s){ return Math.max(-140, -40 - s*0.5); }
+  // how far above/below the player's body the ball is still kickable
+  function vZoneFor(s){
+    return { above: Math.max(52, 100 - s*0.32), below: Math.max(26, 55 - s*0.18) };
+  }
   function gravityFor(s){
     // smoother, unbounded ramp with diminishing returns so late game keeps tightening
     return 30 + 26*(1 - Math.exp(-s/22)) + s*0.12;
@@ -372,7 +507,7 @@
   function windFor(s){
     // small unpredictable lateral push introduced after the first stage, grows slowly
     if(s < 8) return 0;
-    return Math.min(70, (s-8)*2.1);
+    return Math.min(70, (s-8)*0.55);
   }
 
   function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
@@ -383,11 +518,13 @@
     // the ball is only kickable while it's actually near the character's body —
     // tied to player.y (not a fixed slice of the screen), so it can't be hit
     // while still sailing high overhead: that read as fake, per user feedback.
-    const nearBody = ball.y > player.y - 55 && ball.y < player.y + 30;
+    // The zone itself starts wide (accessible from the very first touch) and
+    // narrows with score, per vZoneFor.
+    const zone = vZoneFor(score);
+    const nearBody = ball.y > player.y - zone.above && ball.y < player.y + zone.below;
     const inReach = Math.abs(ball.x - player.x) < reach && nearBody && ball.vy >= vyTol;
     player.kick = 1;
     if(!inReach) return false;
-    const stageIdx = stageIndexForScore(score);
     const power = 560 + Math.min(score,30)*2.4;
     ball.vy = -power;
     // instinctive correction: the further the ball has drifted from the body,
@@ -404,7 +541,8 @@
     scoreLabel.classList.remove('pop'); void scoreLabel.offsetWidth; scoreLabel.classList.add('pop');
     if(score > best){ best = score; localStorage.setItem(BEST_KEY, String(best)); bestLabel.textContent = best; }
     updateStagesUI(score);
-    burst(ball.x, ball.y, STAGE_ACCENT[stageIdx]);
+    const hitBlend = stageBlendFor(score);
+    burst(ball.x, ball.y, lerpHex(STAGE_ACCENT[hitBlend.a], STAGE_ACCENT[hitBlend.b], hitBlend.t));
     if(windMag > 0) windGust(ball.x, ball.y, wind >= 0 ? 1 : -1);
     if(!windIntroduced && score === 8){ windIntroduced = true; windIntroT = 1.6; windBadge.classList.add('intro'); }
     shake = Math.min(shake + 5, 10);
@@ -449,12 +587,19 @@
     finalBest.textContent = 'Record: ' + best;
     overOverlay.hidden = false;
     requestAnimationFrame(()=>overOverlay.classList.add('show'));
+
+    lbSavedThisRun = false;
+    lbName.value = '';
+    lbSaveBtn.disabled = false;
+    lbSubmit.hidden = !(dbNS && score > 0);
+    loadLeaderboard();
   }
 
   // ---------- Scene palettes ----------
   const STAGE_ACCENT = ['#E15C3A', '#E3792F', '#D9962F', '#E9C36A'];
 
   function lerp(a,b,t){ return a+(b-a)*t; }
+  function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 
   // Atmospheric Minimalist palette helpers — soft radial glows and gradient
   // grounds/skies are how this direction reads as "a moment of light" rather
@@ -462,6 +607,15 @@
   function hexA(hex, a){
     const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
     return `rgba(${r},${g},${b},${a})`;
+  }
+  // Returns a #rrggbb string (not rgb(...)) so the result is still a valid
+  // hexColor input to hexA()/glow() — those slice out hex digit pairs.
+  function lerpHex(h1, h2, t){
+    const c1=[parseInt(h1.slice(1,3),16),parseInt(h1.slice(3,5),16),parseInt(h1.slice(5,7),16)];
+    const c2=[parseInt(h2.slice(1,3),16),parseInt(h2.slice(3,5),16),parseInt(h2.slice(5,7),16)];
+    const r=Math.round(lerp(c1[0],c2[0],t)), g=Math.round(lerp(c1[1],c2[1],t)), b=Math.round(lerp(c1[2],c2[2],t));
+    const hex = n => n.toString(16).padStart(2,'0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
   }
   function glow(cx, cy, r, hexColor, alpha){
     const g = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
@@ -471,23 +625,63 @@
     ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
   }
 
-  function skyGradient(stageIdx){
-    const stops = {
-      cortile:  [[0,'#7FA8C9'],[0.45,'#E9C79A'],[1,'#F6E7C4']],
-      vicolo:   [[0,'#7D4C6B'],[0.5,'#E8703F'],[1,'#F8C48A']],
-      piazza:   [[0,'#1B1640'],[0.55,'#4A2F55'],[1,'#8C5B6E']],
-      spiaggia: [[0,'#060814'],[0.6,'#0F1830'],[1,'#1C2C4A']]
-    };
-    const names = ['cortile','vicolo','piazza','spiaggia'];
-    return stops[names[stageIdx]];
+  // How far this score sits between its stage and the next — the same
+  // continuous 0..1 the sky, the sun/moon, and the character/ball accent
+  // colors all key off of, so the day genuinely passes instead of jump-
+  // cutting at each stage threshold.
+  function stageBlendFor(score){
+    const idx = stageIndexForScore(score);
+    const nextIdx = Math.min(idx+1, STAGES.length-1);
+    if(idx === nextIdx) return { a: idx, b: idx, t: 0 };
+    const lo = STAGES[idx].threshold, hi = STAGES[nextIdx].threshold;
+    return { a: idx, b: nextIdx, t: hi>lo ? clamp01((score-lo)/(hi-lo)) : 0 };
   }
 
-  function drawSky(stageIdx){
-    const stops = skyGradient(stageIdx);
+  const SKY_STOPS = [
+    [[0,'#7FA8C9'],[0.45,'#E9C79A'],[1,'#F6E7C4']], // cortile
+    [[0,'#7D4C6B'],[0.5,'#E8703F'],[1,'#F8C48A']],  // vicolo
+    [[0,'#1B1640'],[0.55,'#4A2F55'],[1,'#8C5B6E']], // piazza
+    [[0,'#060814'],[0.6,'#0F1830'],[1,'#1C2C4A']]   // spiaggia
+  ];
+
+  function drawSky(score){
+    const bl = stageBlendFor(score);
+    const stopsA = SKY_STOPS[bl.a], stopsB = SKY_STOPS[bl.b];
     const g = ctx.createLinearGradient(0,0,0,H*0.80);
-    stops.forEach(([offset,color])=> g.addColorStop(offset,color));
+    stopsA.forEach(([offset,color],i)=> g.addColorStop(offset, lerpHex(color, stopsB[i][1], bl.t)));
     ctx.fillStyle = g;
     ctx.fillRect(0,0,W,H);
+  }
+
+  // Sun sinks across the first ~60% of the run, moon rises to replace it —
+  // one continuous cycle instead of a static disc that pops between scenes.
+  function drawCelestial(score){
+    const dayT = clamp01(score / STAGES[STAGES.length-1].threshold);
+    const su = clamp01(dayT/0.6);
+    const sunAlpha = clamp01(1.35*(1-su));
+    if(sunAlpha > 0.01){
+      const sx = lerp(W*0.60, W*0.92, su);
+      const sy = lerp(H*0.14, H*0.60, su*su);
+      ctx.globalAlpha = sunAlpha;
+      glow(sx, sy, 26*2.6, '#FBE3A0', 0.55);
+      ctx.fillStyle = '#FBE3A0';
+      ctx.beginPath(); ctx.arc(sx, sy, 26, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    const mu = clamp01((dayT-0.4)/0.6);
+    const moonAlpha = clamp01(mu*1.4);
+    if(moonAlpha > 0.01){
+      const mx = lerp(W*0.18, W*0.78, mu);
+      const my = lerp(H*0.58, H*0.15, mu*mu);
+      ctx.globalAlpha = moonAlpha;
+      glow(mx, my, 60, '#EFE6C8', 0.4);
+      ctx.fillStyle = '#EFE6C8';
+      ctx.beginPath(); ctx.arc(mx, my, 22, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(150,140,110,0.35)';
+      ctx.beginPath(); ctx.arc(mx-4, my-3, 4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx+4, my+4, 3, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   }
 
   function drawGround(colorTop, colorBottom){
@@ -498,19 +692,11 @@
     ctx.fillRect(0, H*0.80, W, H*0.20);
   }
 
-  function drawSun(x,y,r,color,glowR){
-    glow(x,y, glowR || r*2.6, color, 0.55);
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-  }
-
   function drawCortile(){
-    drawSky(0);
     const wallG = ctx.createLinearGradient(0,H*0.42,0,H*0.82);
     wallG.addColorStop(0,'#EAC49B'); wallG.addColorStop(1,'#D9A87A');
     ctx.fillStyle = wallG;
     ctx.fillRect(0, H*0.42, W, H*0.40);
-    drawSun(W*0.82, H*0.16, 26, '#FBE3A0');
     ctx.fillStyle = 'rgba(90,60,50,0.24)';
     for(let i=0;i<2;i++){
       ctx.fillRect(W*0.14 + i*W*0.30, H*0.48, W*0.14, H*0.14);
@@ -535,7 +721,6 @@
   }
 
   function drawVicolo(){
-    drawSky(1);
     const heights = [0.5,0.38,0.46,0.34,0.5];
     ctx.globalAlpha = 0.92;
     ctx.fillStyle = '#3A2A3E';
@@ -566,7 +751,6 @@
   }
 
   function drawPiazza(){
-    drawSky(2);
     ctx.strokeStyle = 'rgba(240,220,180,0.45)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -589,7 +773,6 @@
   }
 
   function drawSpiaggia(){
-    drawSky(3);
     if(!starField.length){
       for(let i=0;i<40;i++){
         starField.push({x:Math.random(),y:Math.random()*0.55,seed:Math.random()*10});
@@ -600,12 +783,6 @@
       ctx.fillStyle = `rgba(255,250,235,${0.3+0.6*tw})`;
       ctx.beginPath(); ctx.arc(s.x*W, s.y*H, 1.4, 0, Math.PI*2); ctx.fill();
     });
-    glow(W*0.78, H*0.16, 60, '#EFE6C8', 0.4);
-    ctx.fillStyle = '#EFE6C8';
-    ctx.beginPath(); ctx.arc(W*0.78, H*0.16, 22, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(150,140,110,0.35)';
-    ctx.beginPath(); ctx.arc(W*0.74, H*0.13, 4, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(W*0.82, H*0.20, 3, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#182B4A';
     ctx.fillRect(0, H*0.74, W, H*0.06);
     drawGround('#D9C69A', '#B49A68');
@@ -618,7 +795,7 @@
   // Flat ink silhouette with a soft stage-tinted rim glow (Alto's Odyssey-style
   // backlight) — stays readable against all four scene palettes without needing
   // a skin tone that could match a background color.
-  function drawPlayer(stageIdx){
+  function drawPlayer(accent){
     const bob = reduceMotion ? 0 : Math.sin(t*3)*2;
     const kick = player.kick;
     player.kick = Math.max(0, player.kick - 0.06);
@@ -628,7 +805,6 @@
 
     const kx = player.x, ky = player.y + bob + slump*10;
     const ink = '#1D1624';
-    const accent = STAGE_ACCENT[stageIdx];
 
     ctx.save();
     ctx.translate(kx, ky);
@@ -727,19 +903,19 @@
     ctx.fill();
   }
 
-  function drawBall(stageIdx){
+  function drawBall(accent){
     // motion trail
     trail.forEach((p,i)=>{
       const a = (i/trail.length) * 0.22;
       ctx.globalAlpha = a;
-      ctx.fillStyle = STAGE_ACCENT[stageIdx];
+      ctx.fillStyle = accent;
       ctx.beginPath(); ctx.arc(p.x,p.y,ball.r*0.7,0,Math.PI*2); ctx.fill();
     });
     ctx.globalAlpha = 1;
 
     // soft halo instead of a crisp rim — same atmospheric backlight the
     // character gets, so the ball reads as lit rather than outlined
-    glow(ball.x, ball.y, ball.r*2.3, STAGE_ACCENT[stageIdx], 0.4);
+    glow(ball.x, ball.y, ball.r*2.3, accent, 0.4);
 
     ctx.save();
     ctx.translate(ball.x, ball.y);
@@ -763,7 +939,7 @@
     ctx.restore();
 
     // faint rim, just enough edge definition to hold against a light sky
-    ctx.strokeStyle = STAGE_ACCENT[stageIdx];
+    ctx.strokeStyle = accent;
     ctx.globalAlpha = 0.32;
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.arc(0,0,ball.r-0.7,0,Math.PI*2); ctx.stroke();
@@ -805,6 +981,8 @@
     if(!reduceMotion || state==='playing') t += dt;
 
     const stageIdx = stageIndexForScore(score);
+    const bl = stageBlendFor(score);
+    const accent = lerpHex(STAGE_ACCENT[bl.a], STAGE_ACCENT[bl.b], bl.t);
 
     ctx.save();
     if(shake > 0.02 && !reduceMotion){
@@ -815,6 +993,8 @@
     } else { shake = 0; }
 
     ctx.clearRect(-20,-20,W+40,H+40);
+    drawSky(score);
+    drawCelestial(score);
     SCENE_DRAW[stageIdx]();
 
     if(state === 'playing'){
@@ -871,8 +1051,8 @@
     particles = particles.filter(p=>p.life>0);
 
     drawBallShadow(stageIdx);
-    drawPlayer(stageIdx);
-    drawBall(stageIdx);
+    drawPlayer(accent);
+    drawBall(accent);
     drawParticles();
 
     ctx.restore();
