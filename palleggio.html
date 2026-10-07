@@ -314,7 +314,7 @@
     </div>
 
     <div class="overlay" id="overOverlay" hidden>
-      <div class="big" id="finalScore">0 tocchi</div>
+      <div class="big" id="finalScore">0 punti</div>
       <div class="small" id="finalBest">Record: 0</div>
       <div class="lb" id="lb" hidden>
         <div class="lb-submit" id="lbSubmit" hidden>
@@ -376,7 +376,7 @@
     if(!dbNS || lbSavedThisRun) return;
     const name = (lbName.value || '').trim().slice(0,3).toUpperCase() || 'YOU';
     lbSaveBtn.disabled = true;
-    dbNS.collection('leaderboard').add({ name, score, ts: Date.now() })
+    dbNS.collection('leaderboard').add({ name, score: score + bonusPoints, ts: Date.now() })
       .then(()=>{
         lbSavedThisRun = true;
         lbSubmit.hidden = true;
@@ -430,29 +430,50 @@
   let state = 'start'; // start | playing | over
   let t = 0;
   let score = 0;
+  // Eases toward `score` every frame instead of jumping with it — gameplay
+  // (reach, gravity, wind...) reacts to `score` instantly as it must, but
+  // purely atmospheric things (sky gradient, sun/moon position, glow color)
+  // read from this instead so the world drifts continuously and never snaps
+  // on the exact frame of a hit.
+  let scoreSmooth = 0;
   let particles = [];
+  let floaters = []; // small "+1" / "COMBO" callouts, separate from particles
   let trail = [];
+  // `score` stays a pure touch counter — every difficulty/atmosphere formula
+  // keys off it and it must never skip or jump. `bonusPoints` is purely a
+  // display/leaderboard layer on top, earned by precise (early-in-the-window)
+  // touches via `combo` — the player's visible points are score+bonusPoints,
+  // but the game itself only ever "sees" the untouched `score`.
+  let bonusPoints = 0;
+  let combo = 0;
+  let bestCombo = 0;
   let shake = 0; // camera shake magnitude, decays
   let missSlump = 0; // 0..1 character slump on game over
   let windIntroduced = false; // one-time "wind is arriving" telegraph, per run
   let windIntroT = 0; // countdown driving that telegraph's visibility
 
-  const player = { x:0, y:0, kick:0, lean:0 };
+  const player = { x:0, y:0, kick:0, lean:0, scarfX:0 };
   const ball = { x:0, y:0, vx:0, vy:0, r:16, rot:0, squashX:1, squashY:1 };
 
   function resetRun(){
     score = 0;
+    scoreSmooth = 0;
     scoreLabel.textContent = '0';
     updateStagesUI(0);
     player.x = W*0.5;
     player.y = H*0.80;
     player.lean = 0;
+    player.scarfX = 0;
     ball.x = W*0.5;
     ball.y = player.y - 30;
     ball.vx = 0; ball.vy = 0; ball.rot = 0;
     ball.squashX = 1; ball.squashY = 1;
     particles = [];
+    floaters = [];
     trail = [];
+    bonusPoints = 0;
+    combo = 0;
+    bestCombo = 0;
     shake = 0;
     missSlump = 0;
     windIntroduced = false;
@@ -470,6 +491,13 @@
         life:1, spin:(Math.random()-0.5)*8, size:2+Math.random()*2.5, color
       });
     }
+  }
+
+  // small callout text for a precise touch or a combo milestone — kept
+  // separate from `particles` since it's text, not a physics-y confetti bit
+  function spawnFloater(x,y,text,color){
+    if(reduceMotion) return;
+    floaters.push({x, y, text, color, life:1});
   }
 
   // small pale streaks flying in the direction a gust just pushed the ball —
@@ -536,13 +564,41 @@
     const wind = windMag * (Math.random()*2-1);
     ball.vx = clamp(ball.vx*0.15 + restore + steer + wind, -170, 170);
     ball.squashX = 1.28; ball.squashY = 0.72;
+
+    // Precision: how early in the reachable window the touch landed — near
+    // the top (just as the ball re-entered range) reads as a confident,
+    // skillful touch; near the bottom is a last-moment save. Rewarded as
+    // bonus *points* only — `score` below stays a pure touch count, so this
+    // never feeds back into the difficulty curve.
+    const yT = clamp01((ball.y - (player.y - zone.above)) / (zone.above + zone.below));
+    const precision = 1 - yT;
+    const perfect = precision >= 0.6;
+
     score += 1;
-    scoreLabel.textContent = String(score);
+    if(perfect){
+      bonusPoints += 1;
+      combo += 1;
+      bestCombo = Math.max(bestCombo, combo);
+    } else {
+      combo = 0;
+    }
+    const points = score + bonusPoints;
+    scoreLabel.textContent = String(points);
     scoreLabel.classList.remove('pop'); void scoreLabel.offsetWidth; scoreLabel.classList.add('pop');
-    if(score > best){ best = score; localStorage.setItem(BEST_KEY, String(best)); bestLabel.textContent = best; }
+    if(points > best){ best = points; localStorage.setItem(BEST_KEY, String(best)); bestLabel.textContent = best; }
     updateStagesUI(score);
     const hitBlend = stageBlendFor(score);
-    burst(ball.x, ball.y, lerpHex(STAGE_ACCENT[hitBlend.a], STAGE_ACCENT[hitBlend.b], hitBlend.t));
+    const hitColor = lerpHex(STAGE_ACCENT[hitBlend.a], STAGE_ACCENT[hitBlend.b], hitBlend.t);
+    burst(ball.x, ball.y, hitColor);
+    if(perfect && combo % 5 === 0){
+      bonusPoints += combo/5;
+      scoreLabel.textContent = String(score + bonusPoints);
+      spawnFloater(ball.x, ball.y - 26, `COMBO x${combo}`, hitColor);
+      burst(ball.x, ball.y, hitColor);
+      shake = Math.min(shake + 4, 10);
+    } else if(perfect){
+      spawnFloater(ball.x, ball.y - 24, '+1', hitColor);
+    }
     if(windMag > 0) windGust(ball.x, ball.y, wind >= 0 ? 1 : -1);
     if(!windIntroduced && score === 8){ windIntroduced = true; windIntroT = 1.6; windBadge.classList.add('intro'); }
     shake = Math.min(shake + 5, 10);
@@ -583,15 +639,16 @@
 
   function gameOver(){
     state = 'over';
-    finalScore.textContent = score === 1 ? '1 tocco' : score + ' tocchi';
-    finalBest.textContent = 'Record: ' + best;
+    const points = score + bonusPoints;
+    finalScore.textContent = points === 1 ? '1 punto' : points + ' punti';
+    finalBest.textContent = 'Record: ' + best + (bestCombo >= 5 ? ` · Combo migliore: x${bestCombo}` : '');
     overOverlay.hidden = false;
     requestAnimationFrame(()=>overOverlay.classList.add('show'));
 
     lbSavedThisRun = false;
     lbName.value = '';
     lbSaveBtn.disabled = false;
-    lbSubmit.hidden = !(dbNS && score > 0);
+    lbSubmit.hidden = !(dbNS && points > 0);
     loadLeaderboard();
   }
 
@@ -834,8 +891,20 @@
     ctx.fillRect(-4, 0, 8, 20);
     ctx.restore();
 
-    // kicking leg (thigh + shin, eased swing)
-    const swing = Math.sin(kick*Math.PI); // 0->1->0 easing across the kick
+    // kicking leg (thigh + shin) — a real wind-up-and-release instead of a
+    // plain sine: a quick backward anticipation, a fast forward release
+    // that overshoots past full extension, then it settles back to rest.
+    const kt = 1 - kick; // 0 at the instant of the tap -> 1 once it's settled
+    let swing;
+    if(kt < 0.18){
+      swing = -0.35 * Math.sin((kt/0.18) * Math.PI*0.5);
+    } else if(kt < 0.55){
+      const p = (kt-0.18)/0.37;
+      swing = lerp(-0.35, 1.15, 1 - Math.pow(1-p, 3));
+    } else {
+      const p = Math.min((kt-0.55)/0.45, 1);
+      swing = lerp(1.15, 0, 1 - Math.pow(1-p, 2));
+    }
     ctx.save();
     ctx.translate(6, -4);
     ctx.rotate(-swing*1.05);
@@ -880,12 +949,19 @@
 
     ctx.shadowBlur = 0;
 
-    // sash — small saturated detail for personality, not a background-sized fill
+    // scarf — a small saturated detail that actually moves: it trails
+    // opposite the lean, kicks back with the swing, and flutters when the
+    // wind mechanic is active, so it doubles as a subtle wind readout.
+    const windLean = windFor(score) > 0 ? Math.sin(t*4) * (windFor(score)*0.15) : 0;
+    const targetScarf = clamp(-player.lean*1.2 + windLean + swing*6, -30, 30);
+    player.scarfX += (targetScarf - player.scarfX) * 0.15;
+    const sx = player.scarfX;
     ctx.strokeStyle = '#2F8F82';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 5;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-11,-27); ctx.lineTo(9,-9);
+    ctx.moveTo(-7, -29);
+    ctx.quadraticCurveTo(sx*0.5 - 6, -20, sx - 10, -7 + Math.abs(sx)*0.12);
     ctx.stroke();
 
     ctx.restore();
@@ -974,14 +1050,27 @@
     ctx.globalAlpha = 1;
   }
 
+  function drawFloaters(){
+    floaters.forEach(f=>{
+      ctx.save();
+      ctx.globalAlpha = Math.max(f.life, 0);
+      ctx.fillStyle = f.color;
+      ctx.font = "700 15px 'Schibsted Grotesk', sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillText(f.text, f.x, f.y - (1-f.life)*34);
+      ctx.restore();
+    });
+  }
+
   let last = performance.now();
   function loop(now){
     const dt = Math.min((now-last)/1000, 1/30);
     last = now;
     if(!reduceMotion || state==='playing') t += dt;
+    scoreSmooth += (score - scoreSmooth) * Math.min(1, dt*2.2);
 
     const stageIdx = stageIndexForScore(score);
-    const bl = stageBlendFor(score);
+    const bl = stageBlendFor(reduceMotion ? score : scoreSmooth);
     const accent = lerpHex(STAGE_ACCENT[bl.a], STAGE_ACCENT[bl.b], bl.t);
 
     ctx.save();
@@ -993,8 +1082,9 @@
     } else { shake = 0; }
 
     ctx.clearRect(-20,-20,W+40,H+40);
-    drawSky(score);
-    drawCelestial(score);
+    const atmosScore = reduceMotion ? score : scoreSmooth;
+    drawSky(atmosScore);
+    drawCelestial(atmosScore);
     SCENE_DRAW[stageIdx]();
 
     if(state === 'playing'){
@@ -1050,10 +1140,14 @@
     });
     particles = particles.filter(p=>p.life>0);
 
+    floaters.forEach(f=>{ f.life -= dt*1.1; });
+    floaters = floaters.filter(f=>f.life>0);
+
     drawBallShadow(stageIdx);
     drawPlayer(accent);
     drawBall(accent);
     drawParticles();
+    drawFloaters();
 
     ctx.restore();
 
